@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ERTVC Inventory Pro</title>
+    <meta name="theme-color" content="#0284c7">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'primary': '#0284c7', // sky-600
+              'secondary': '#e2e8f0', // slate-200
+              'accent': '#facc15', // amber-400
+              'background': '#f1f5f9', // slate-100
+              'surface': '#ffffff', // white
+              'text-primary': '#1e293b', // slate-800
+              'text-secondary': '#64748b', // slate-500
+            },
+          },
+        },
+      }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Add Babel Standalone for in-browser transpilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "recharts": "https://esm.sh/recharts@2.12.7",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/"
+  }
+}
+</script>
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-background">
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+      import React, { useState, useMemo } from 'react';
+      import ReactDOM from 'react-dom/client';
+      import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+      
+      // --- Consolidated Application Code ---
+
+      // From types.ts
+      const UnitType = { PCS: 'pcs', KGS: 'kgs' };
+      const RecipientType = {
+          TRAINEE: 'Trainee',
+          TRAINER: 'Trainer',
+          NON_TEACHING_STAFF: 'Non-teaching Staff',
+          HOD: 'HOD',
+          DP_ACADEMICS_OFFICE: 'DP Academics Office',
+          PRINCIPALS_OFFICE: 'Principals Office',
+          EXAMINATION_OFFICE: 'Examination Office',
+          ACCOUNTS_OFFICE: 'Accounts Office',
+          PROCUREMENT_OFFICE: 'Procurement Office',
+          DP_ADMINISTRATION_OFFICE: 'DP Administration Office',
+          KITCHEN: 'Kitchen',
+      };
+      const Page = {
+          DASHBOARD: 'Dashboard',
+          INVENTORY: 'Inventory',
+          ISSUE_LOG: 'Issue Log',
+          RECIPIENTS: 'Recipients',
+      };
+
+      // From components/common/Modal.tsx
+      const Modal = ({ isOpen, onClose, title, children }) => {
+        if (!isOpen) return null;
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center" onClick={onClose}>
+            <div
+              className="bg-surface rounded-lg shadow-xl w-full max-w-md m-4 p-6 transform transition-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-text-primary">{title}</h3>
+                <button onClick={onClose} className="text-gray-400 hover:text-gray-800">
+                  <i className="fas fa-times text-2xl"></i>
+                </button>
+              </div>
+              <div>{children}</div>
+            </div>
+          </div>
+        );
+      };
+
+      // From components/Reports.tsx
+      const COAT_OF_ARMS_BASE64 = 'data:image/png;base64,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';
+      const ERTVC_LOGO_BASE64 = 'data:image/png;base64,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';
+
+      const exportToPdf = (title, headers, data, filename) => {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({ orientation: 'portrait' });
+          doc.addImage(COAT_OF_ARMS_BASE64, 'PNG', 15, 12, 25, 25);
+          doc.addImage(ERTVC_LOGO_BASE64, 'PNG', 170, 12, 25, 25);
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor('#1e293b');
+          doc.text('ELDAMA RAVINE TECHNICAL AND', 105, 18, { align: 'center' });
+          doc.text('VOCATIONAL COLLEGE', 105, 25, { align: 'center' });
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor('#1e293b');
+          doc.text('P.O. BOX 560-20103 – ELDAMA RAVINE', 105, 34, { align: 'center' });
+          doc.text('(MAJI MAZURI – MAKUTANO ROAD)', 105, 39, { align: 'center' });
+          doc.text('Phone: 0729226734', 105, 44, { align: 'center' });
+          doc.setFont('helvetica', 'bold');
+          doc.text('EMAIL:', 72, 50, { align: 'right' });
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor('#0000ff');
+          doc.textWithLink('principal@ertvc.ac.ke', 75, 50, { url: 'mailto:principal@ertvc.ac.ke' });
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor('#1e293b');
+          doc.text('WEBSITE:', 127, 50, { align: 'right' });
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor('#0000ff');
+          doc.textWithLink('http://www.ertvc.ac.ke', 130, 50, { url: 'http://www.ertvc.ac.ke' });
+          doc.setDrawColor(0);
+          doc.setLineWidth(0.5);
+          doc.line(10, 56, 200, 56);
+          const tableStartY = 70;
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor('#1e293b');
+          doc.text(title, 105, tableStartY - 5, { align: 'center' });
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor('#64748b');
+          doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, tableStartY + 2);
+          doc.autoTable({
+              startY: tableStartY + 7,
+              head: headers,
+              body: data,
+              theme: 'grid',
+              headStyles: { fillColor: [2, 132, 199], textColor: 255, fontStyle: 'bold' },
+              styles: { fontSize: 8, cellPadding: 2 },
+              alternateRowStyles: { fillColor: [241, 245, 249] }
+          });
+          doc.save(filename);
+      }
+
+      const ReportCard = ({ title, description, iconClass, onPdfClick }) => {
+          const pdfButtonClass = "w-full text-center font-bold py-2 px-3 rounded-lg flex items-center justify-center transition-colors text-sm shadow-sm bg-primary hover:bg-sky-500 text-white";
+          return (
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex flex-col gap-2 justify-between">
+                  <div>
+                      <div className="flex items-center gap-3 mb-2">
+                          <i className={`${iconClass} text-2xl text-primary w-8 text-center`}></i>
+                          <h4 className="font-semibold text-text-primary">{title}</h4>
+                      </div>
+                      <p className="text-xs text-text-secondary">{description}</p>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                      <button onClick={onPdfClick} className={pdfButtonClass}>
+                          <i className="fas fa-file-pdf mr-2"></i> Download PDF
+                      </button>
+                  </div>
+              </div>
+          );
+      };
+
+      const Reports = ({ items }) => {
+        const downloadAssetReportPdf = () => {
+          const assetItems = items.filter(item => item.isAsset);
+          if(assetItems.length === 0) { alert("No asset data to export."); return; }
+          exportToPdf( 'Asset Report', [['Name', 'Category', 'Department', 'Quantity', 'Unit', 'Date Added']], assetItems.map(item => [item.name, item.category, item.department, item.quantity, item.unit, item.dateAdded]), 'asset_report.pdf' );
+        };
+        const downloadKitchenReportPdf = () => {
+          const kitchenItems = items.filter(item => item.department.toLowerCase() === 'kitchen');
+          if(kitchenItems.length === 0) { alert("No kitchen data to export."); return; }
+          exportToPdf( 'Kitchen Inventory Report', [['Name', 'Category', 'Type', 'Quantity', 'Unit', 'Date Added']], kitchenItems.map(item => [item.name, item.category, item.isAsset ? 'Asset' : 'Consumable', item.quantity, item.unit, item.dateAdded]), 'kitchen_inventory_report.pdf' );
+        };
+        const downloadStockReportPdf = () => {
+          if(items.length === 0) { alert("No stock data to export."); return; }
+          exportToPdf( 'Full Stock Report', [['Name', 'Category', 'Department', 'Type', 'Quantity', 'Unit', 'Date Added']], items.map(item => [item.name, item.category, item.department, item.isAsset ? 'Asset' : 'Consumable', item.quantity, item.unit, item.dateAdded]), 'full_stock_report.pdf' );
+        };
+
+        return (
+          <div className="bg-surface p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-semibold text-text-primary mb-4">Download Reports</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <ReportCard title="Asset Report" description="A list of all returnable assets in the inventory." iconClass="fas fa-shield-halved" onPdfClick={downloadAssetReportPdf}/>
+              <ReportCard title="Kitchen Report" description="All consumable items and assets for the Kitchen." iconClass="fas fa-utensils" onPdfClick={downloadKitchenReportPdf}/>
+              <ReportCard title="Full Stock Report" description="A complete dump of all items currently in stock." iconClass="fas fa-boxes-stacked" onPdfClick={downloadStockReportPdf}/>
+            </div>
+          </div>
+        );
+      };
+
+      // From Dashboard.tsx
+      const StatCard = ({ title, value, iconClass }) => (
+        <div className="bg-surface p-6 rounded-lg shadow-md flex items-center">
+          <div className="bg-primary p-4 rounded-full mr-4">
+            <i className={`${iconClass} text-white text-2xl`}></i>
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-text-secondary">{title}</h3>
+            <p className="text-2xl font-bold text-text-primary">{value}</p>
+          </div>
+        </div>
+      );
+
+      const COLORS = ['#0284c7', '#facc15', '#10b981', '#a855f7', '#f43f5e', '#64748b'];
+
+      const Dashboard = ({ stats, items }) => {
+        const categoryData = React.useMemo(() => {
+          const categoryCounts = items.reduce((acc, item) => {
+            acc[item.category] = (acc[item.category] || 0) + item.quantity;
+            return acc;
+          }, {});
+          return Object.entries(categoryCounts).map(([name, value]) => ({ name, value }));
+        }, [items]);
+
+        return (
+          <div>
+            <h2 className="text-3xl font-bold text-text-primary mb-6">Dashboard</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <StatCard title="Total Items in Stock" value={stats.totalItems} iconClass="fas fa-boxes-stacked" />
+              <StatCard title="Total Items Issued" value={stats.totalIssued} iconClass="fas fa-arrow-right-from-bracket" />
+              <StatCard title="Low Stock Items" value={stats.lowStockItems} iconClass="fas fa-exclamation-triangle" />
+              <StatCard title="Item Categories" value={stats.categories} iconClass="fas fa-tags" />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <div className="bg-surface p-6 rounded-lg shadow-md">
+                <h3 className="text-xl font-semibold text-text-primary mb-4">Stock Levels by Item</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={items} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 12 }} />
+                    <YAxis stroke="#64748b" />
+                    <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }} labelStyle={{ color: '#1e293b' }} />
+                    <Legend />
+                    <Bar dataKey="quantity" fill="#0284c7" name="Quantity in Stock" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="bg-surface p-6 rounded-lg shadow-md">
+                 <h3 className="text-xl font-semibold text-text-primary mb-4">Stock by Category</h3>
+                 <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie data={categoryData} cx="50%" cy="50%" labelLine={false} outerRadius={110} fill="#8884d8" dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} >
+                      {categoryData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                    </Pie>
+                     <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }} labelStyle={{ color: '#1e293b' }} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <Reports items={items} />
+          </div>
+        );
+      };
+
+      // From Inventory.tsx
+      const Inventory = ({ items, recipients, onAddItem, onIssueItem }) => {
+        const [isAddModalOpen, setAddModalOpen] = useState(false);
+        const [isIssueModalOpen, setIssueModalOpen] = useState(false);
+        const [itemToIssue, setItemToIssue] = useState(null);
+        const [newItem, setNewItem] = useState({ name: '', quantity: 0, category: '', department: '', unit: UnitType.PCS, isAsset: false });
+        const [issueQuantity, setIssueQuantity] = useState(1);
+        const [selectedRecipient, setSelectedRecipient] = useState(null);
+        const [recipientSearch, setRecipientSearch] = useState('');
+        const [returnDate, setReturnDate] = useState('');
+
+        const filteredRecipients = useMemo(() => {
+          if (recipientSearch.length < 2) return [];
+          const searchTerm = recipientSearch.toLowerCase();
+          return recipients.filter(r => r.name.toLowerCase().includes(searchTerm) || r.identifier.toLowerCase().includes(searchTerm));
+        }, [recipientSearch, recipients]);
+
+        const handleAddItemSubmit = (e) => {
+          e.preventDefault();
+          if (newItem.name && newItem.quantity > 0 && newItem.category && newItem.department) {
+            onAddItem(newItem);
+            setNewItem({ name: '', quantity: 0, category: '', department: '', unit: UnitType.PCS, isAsset: false });
+            setAddModalOpen(false);
+          }
+        };
+
+        const handleIssueItemClick = (item) => {
+          setItemToIssue(item);
+          setIssueQuantity(1);
+          setSelectedRecipient(null);
+          setRecipientSearch('');
+          setReturnDate('');
+          setIssueModalOpen(true);
+        };
+
+        const handleRecipientSelect = (recipient) => {
+          setSelectedRecipient(recipient);
+          setRecipientSearch(recipient.name);
+        };
+        
+        const handleIssueItemSubmit = (e) => {
+          e.preventDefault();
+          if (itemToIssue && selectedRecipient && issueQuantity > 0) {
+            if (itemToIssue.isAsset && !returnDate) {
+              alert('Please provide an expected return date for this asset.');
+              return;
+            }
+            const issueDetails = {
+              itemId: itemToIssue.id,
+              quantityIssued: issueQuantity,
+              recipientName: `${selectedRecipient.name} (${selectedRecipient.identifier})`,
+              recipientType: selectedRecipient.type,
+            };
+            if (itemToIssue.isAsset) {
+              issueDetails.returnDate = returnDate;
+            }
+            const success = onIssueItem(issueDetails);
+            if(success) {
+              setIssueModalOpen(false);
+              setItemToIssue(null);
+            }
+          } else {
+              alert("Please select a recipient and enter a valid quantity.");
+          }
+        };
+
+        const closeIssueModal = () => {
+          setIssueModalOpen(false);
+          setItemToIssue(null);
+        }
+
+        return (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-text-primary">Inventory</h2>
+              <button onClick={() => setAddModalOpen(true)} className="bg-primary hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors" >
+                <i className="fas fa-plus mr-2"></i> Add New Item
+              </button>
+            </div>
+            <div className="bg-surface rounded-lg shadow-md overflow-hidden">
+              <table className="min-w-full">
+                <thead className="bg-secondary">
+                  <tr>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Item Name</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Category</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Department</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Type</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Quantity</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Unit</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Date Added</th>
+                    <th className="py-3 px-6 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-secondary">
+                  {items.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-100 transition-colors">
+                      <td className="py-4 px-6 whitespace-nowrap text-text-primary">{item.name}</td>
+                      <td className="py-4 px-6 whitespace-nowrap text-text-secondary">{item.category}</td>
+                      <td className="py-4 px-6 whitespace-nowrap text-text-secondary">{item.department}</td>
+                       <td className="py-4 px-6 whitespace-nowrap text-text-secondary">
+                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${item.isAsset ? 'bg-cyan-100 text-cyan-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                            {item.isAsset ? 'Asset' : 'Consumable'}
+                         </span>
+                       </td>
+                      <td className="py-4 px-6 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ item.quantity > 10 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }`}>
+                          {item.quantity}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 whitespace-nowrap text-text-secondary">{item.unit}</td>
+                      <td className="py-4 px-6 whitespace-nowrap text-text-secondary">{item.dateAdded}</td>
+                      <td className="py-4 px-6 text-center">
+                        <button onClick={() => handleIssueItemClick(item)} className="bg-accent hover:bg-amber-300 text-gray-900 font-bold py-1 px-3 rounded-lg text-sm transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed" disabled={item.quantity === 0} >
+                          Issue
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Modal isOpen={isAddModalOpen} onClose={() => setAddModalOpen(false)} title="Add New Item">
+              <form onSubmit={handleAddItemSubmit}>
+                <div className="mb-4">
+                  <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="itemName">Item Name</label>
+                  <input type="text" id="itemName" value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="category">Category</label>
+                  <input type="text" id="category" value={newItem.category} onChange={(e) => setNewItem({ ...newItem, category: e.target.value })} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="department">Department</label>
+                  <input type="text" id="department" value={newItem.department} onChange={(e) => setNewItem({ ...newItem, department: e.target.value })} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required />
+                </div>
+                 <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="quantity">Quantity</label>
+                    <input type="number" id="quantity" value={newItem.quantity} onChange={(e) => setNewItem({ ...newItem, quantity: parseFloat(e.target.value) || 0 })} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required min="0.01" step="0.01" />
+                  </div>
+                  <div>
+                    <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="unit">Unit</label>
+                    <select id="unit" value={newItem.unit} onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required>
+                      {Object.values(UnitType).map(type => (<option key={type} value={type}>{type}</option>))}
+                    </select>
+                  </div>
+                </div>
+                <div className="mb-4">
+                   <label className="flex items-center cursor-pointer">
+                      <input type="checkbox" checked={newItem.isAsset} onChange={(e) => setNewItem({ ...newItem, isAsset: e.target.checked })} className="form-checkbox h-5 w-5 text-primary rounded focus:ring-primary transition duration-150 ease-in-out" />
+                      <span className="ml-3 text-text-secondary font-bold">This is an asset</span>
+                  </label>
+                  <p className="text-xs text-text-secondary mt-1 ml-8">Check this if the item is a returnable asset (e.g., laptops, tools, furniture).</p>
+                </div>
+                <div className="flex justify-end">
+                  <button type="submit" className="bg-primary hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-lg">Add Item</button>
+                </div>
+              </form>
+            </Modal>
+            <Modal isOpen={isIssueModalOpen} onClose={closeIssueModal} title={`Issue Item: ${itemToIssue?.name}`}>
+              {itemToIssue && (
+                <form onSubmit={handleIssueItemSubmit}>
+                  <div className="mb-4">
+                      <p className="text-text-secondary">Available Quantity: <span className="font-bold text-text-primary">{itemToIssue.quantity} {itemToIssue.unit}</span></p>
+                  </div>
+                  <div className="mb-4">
+                      <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="issueQuantity">Quantity to Issue</label>
+                      <input type="number" id="issueQuantity" value={issueQuantity} onChange={(e) => setIssueQuantity(parseFloat(e.target.value))} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required min="0.01" step="0.01" max={itemToIssue.quantity} />
+                  </div>
+                   { itemToIssue.isAsset && (
+                      <div className="mb-4">
+                          <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="returnDate">Expected Return Date</label>
+                          <input type="date" id="returnDate" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required min={new Date().toISOString().split('T')[0]} />
+                      </div>
+                  )}
+                  <div className="mb-4 relative">
+                      <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="recipientSearch">Recipient</label>
+                      <div className="flex items-center">
+                          <i className="fas fa-search absolute left-3 text-text-secondary"></i>
+                          <input type="text" id="recipientSearch" placeholder="Search by name or ID..." value={recipientSearch} onChange={(e) => { setRecipientSearch(e.target.value); if(selectedRecipient) setSelectedRecipient(null); }} className="w-full bg-slate-100 text-text-primary p-2 pl-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" autoComplete="off" required />
+                      </div>
+                      {filteredRecipients.length > 0 && recipientSearch.length > 0 && !selectedRecipient && (
+                          <ul className="absolute z-10 w-full bg-surface border border-slate-200 rounded-lg mt-1 max-h-48 overflow-y-auto shadow-lg">
+                              {filteredRecipients.map(r => (
+                                  <li key={r.id} className="p-3 hover:bg-slate-100 cursor-pointer text-sm" onClick={() => handleRecipientSelect(r)} >
+                                      <p className="font-semibold text-text-primary">{r.name}</p>
+                                      <p className="text-xs text-text-secondary">{r.identifier} - {r.type}</p>
+                                  </li>
+                              ))}
+                          </ul>
+                      )}
+                  </div>
+                  <div className="flex justify-end mt-6">
+                      <button type="button" onClick={closeIssueModal} className="text-text-secondary font-bold py-2 px-4 rounded-lg mr-2">Cancel</button>
+                      <button type="submit" className="bg-accent hover:bg-amber-300 text-gray-900 font-bold py-2 px-4 rounded-lg disabled:bg-slate-300 disabled:cursor-not-allowed" disabled={!selectedRecipient}>Issue Item</button>
+                  </div>
+                </form>
+              )}
+            </Modal>
+          </div>
+        );
+      };
+      
+      // Shared color function
+      const getRecipientTypeColor = (type) => {
+          switch (type) {
+              case RecipientType.TRAINER: return 'bg-sky-100 text-sky-800';
+              case RecipientType.TRAINEE: return 'bg-fuchsia-100 text-fuchsia-800';
+              case RecipientType.NON_TEACHING_STAFF: return 'bg-amber-100 text-amber-800';
+              case RecipientType.HOD: return 'bg-indigo-100 text-indigo-800';
+              case RecipientType.DP_ACADEMICS_OFFICE: return 'bg-purple-100 text-purple-800';
+              case RecipientType.PRINCIPALS_OFFICE: return 'bg-pink-100 text-pink-800';
+              case RecipientType.EXAMINATION_OFFICE: return 'bg-rose-100 text-rose-800';
+              case RecipientType.ACCOUNTS_OFFICE: return 'bg-teal-100 text-teal-800';
+              case RecipientType.PROCUREMENT_OFFICE: return 'bg-emerald-100 text-emerald-800';
+              case RecipientType.DP_ADMINISTRATION_OFFICE: return 'bg-lime-100 text-lime-800';
+              case RecipientType.KITCHEN: return 'bg-orange-100 text-orange-800';
+              default: return 'bg-slate-200 text-slate-800';
+          }
+      }
+
+      // From IssueLog.tsx
+      const IssueLog = ({ records }) => {
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+
+        return (
+          <div>
+            <h2 className="text-3xl font-bold text-text-primary mb-6">Issue Log</h2>
+            <div className="bg-surface rounded-lg shadow-md overflow-hidden">
+              <table className="min-w-full">
+                <thead className="bg-secondary">
+                  <tr>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Item Name</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Quantity Issued</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Recipient Name</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Recipient Type</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Date Issued</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Return Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-secondary">
+                  {records.map((record) => {
+                    const returnDate = record.returnDate ? new Date(record.returnDate) : null;
+                    const isOverdue = returnDate && returnDate < today;
+
+                    return (
+                      <tr key={record.id} className="hover:bg-slate-100 transition-colors">
+                        <td className="py-4 px-6 whitespace-nowrap text-text-primary">{record.itemName}</td>
+                        <td className="py-4 px-6 whitespace-nowrap text-text-secondary">{record.quantityIssued} {record.unit}</td>
+                        <td className="py-4 px-6 whitespace-nowrap text-text-secondary">{record.recipientName}</td>
+                        <td className="py-4 px-6 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRecipientTypeColor(record.recipientType)}`}>
+                            {record.recipientType}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 whitespace-nowrap text-text-secondary">{record.dateIssued}</td>
+                        <td className="py-4 px-6 whitespace-nowrap text-text-secondary">
+                          {record.returnDate ? (
+                              <span className={`px-2 py-1 text-xs rounded-full font-semibold ${isOverdue ? 'bg-red-200 text-red-800' : 'bg-slate-200 text-slate-700'}`} title={isOverdue ? 'This item is overdue!' : `Expected return on ${record.returnDate}`}>
+                                  {record.returnDate}
+                              </span>
+                          ) : ( <span className="text-slate-400">N/A</span> )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      };
+
+      // From RecipientsPage.tsx
+      const RecipientsPage = ({ recipients, onAddRecipient, onImportRecipients }) => {
+        const [isAddModalOpen, setAddModalOpen] = useState(false);
+        const [isImportModalOpen, setImportModalOpen] = useState(false);
+        const [searchTerm, setSearchTerm] = useState('');
+        const [newRecipient, setNewRecipient] = useState({ name: '', identifier: '', type: RecipientType.TRAINEE });
+        const [importType, setImportType] = useState(RecipientType.TRAINEE);
+        const [csvFile, setCsvFile] = useState(null);
+
+        const handleAddSubmit = (e) => {
+          e.preventDefault();
+          if (newRecipient.name && newRecipient.identifier) {
+            onAddRecipient(newRecipient);
+            setNewRecipient({ name: '', identifier: '', type: RecipientType.TRAINEE });
+            setAddModalOpen(false);
+          }
+        };
+
+        const handleImportSubmit = (e) => {
+          e.preventDefault();
+          if (!csvFile) {
+              alert("Please select a CSV file to import.");
+              return;
+          }
+          const reader = new FileReader();
+          reader.onload = (event) => {
+              const text = event.target?.result;
+              const lines = text.split('\n').filter(line => line.trim() !== '');
+              const imported = lines.slice(1)
+                  .map(line => {
+                      const [name, identifier] = line.split(',').map(s => s.trim().replace(/"/g, ''));
+                      if (name && identifier) {
+                          return { name, identifier, type: importType };
+                      }
+                      return null;
+                  }).filter(r => r !== null);
+              
+              if (imported.length > 0) {
+                  onImportRecipients(imported);
+              } else {
+                  alert("Could not find any valid records to import. Please check the file format.");
+              }
+              setCsvFile(null);
+              setImportModalOpen(false);
+          };
+          reader.readAsText(csvFile);
+        };
+        
+        const filteredRecipients = recipients.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()) || r.identifier.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        return (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-text-primary">Recipients</h2>
+              <div className="flex gap-2">
+                  <button onClick={() => setImportModalOpen(true)} className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors">
+                      <i className="fas fa-file-csv mr-2"></i> Import from CSV
+                  </button>
+                  <button onClick={() => setAddModalOpen(true)} className="bg-primary hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors" >
+                      <i className="fas fa-plus mr-2"></i> Add New Recipient
+                  </button>
+              </div>
+            </div>
+            <div className="mb-4">
+              <input type="text" placeholder="Search by name or ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full max-w-sm bg-surface p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+            <div className="bg-surface rounded-lg shadow-md overflow-hidden">
+              <table className="min-w-full">
+                <thead className="bg-secondary">
+                  <tr>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Name</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">ID / Admission No.</th>
+                    <th className="py-3 px-6 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Type</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-secondary">
+                  {filteredRecipients.map((recipient) => (
+                    <tr key={recipient.id} className="hover:bg-slate-100 transition-colors">
+                      <td className="py-4 px-6 whitespace-nowrap text-text-primary font-medium">{recipient.name}</td>
+                      <td className="py-4 px-6 whitespace-nowrap text-text-secondary">{recipient.identifier}</td>
+                      <td className="py-4 px-6 whitespace-nowrap">
+                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRecipientTypeColor(recipient.type)}`}>
+                          {recipient.type}
+                         </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+               {filteredRecipients.length === 0 && (
+                  <div className="text-center py-10 text-text-secondary">
+                      <p>No recipients found.</p>
+                  </div>
+               )}
+            </div>
+            <Modal isOpen={isAddModalOpen} onClose={() => setAddModalOpen(false)} title="Add New Recipient">
+              <form onSubmit={handleAddSubmit}>
+                <div className="mb-4">
+                  <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="recipientName">Full Name</label>
+                  <input type="text" id="recipientName" value={newRecipient.name} onChange={(e) => setNewRecipient({ ...newRecipient, name: e.target.value })} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="recipientIdentifier">Identifier (ID/Admission No.)</label>
+                  <input type="text" id="recipientIdentifier" value={newRecipient.identifier} onChange={(e) => setNewRecipient({ ...newRecipient, identifier: e.target.value })} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="recipientType">Type</label>
+                  <select id="recipientType" value={newRecipient.type} onChange={(e) => setNewRecipient({ ...newRecipient, type: e.target.value })} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required>
+                      {[RecipientType.TRAINEE, RecipientType.TRAINER, RecipientType.NON_TEACHING_STAFF].map(type => (<option key={type} value={type}>{type}</option>))}
+                  </select>
+                </div>
+                <div className="flex justify-end">
+                  <button type="submit" className="bg-primary hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-lg">Add Recipient</button>
+                </div>
+              </form>
+            </Modal>
+            <Modal isOpen={isImportModalOpen} onClose={() => setImportModalOpen(false)} title="Import Recipients from CSV">
+              <form onSubmit={handleImportSubmit}>
+                  <div className="mb-4 p-4 bg-sky-50 border border-sky-200 rounded-lg text-sm text-sky-800">
+                      <p className="font-bold mb-2"><i className="fas fa-info-circle mr-2"></i>Instructions</p>
+                      <p>1. Create a CSV file with two columns: `Name` and `Identifier`.</p>
+                      <p>2. The first row should be the header (`Name,Identifier`).</p>
+                      <p>3. Select the recipient type below that matches your import list.</p>
+                      <p>4. Duplicates (based on identifier) will be ignored.</p>
+                  </div>
+                  <div className="mb-4">
+                      <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="importRecipientType">Recipient Type for this Import</label>
+                      <select id="importRecipientType" value={importType} onChange={(e) => setImportType(e.target.value)} className="w-full bg-slate-100 text-text-primary p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" required>
+                          {[RecipientType.TRAINEE, RecipientType.TRAINER, RecipientType.NON_TEACHING_STAFF].map(type => (<option key={type} value={type}>{type}</option>))}
+                      </select>
+                  </div>
+                  <div className="mb-4">
+                      <label className="block text-text-secondary text-sm font-bold mb-2" htmlFor="csvFile">CSV File</label>
+                      <input type="file" id="csvFile" onChange={(e) => setCsvFile(e.target.files ? e.target.files[0] : null)} className="w-full text-text-secondary text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-sky-500" accept=".csv" required />
+                  </div>
+                  <div className="flex justify-end">
+                      <button type="submit" className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Import Recipients</button>
+                  </div>
+              </form>
+            </Modal>
+          </div>
+        );
+      };
+
+      // From components/Sidebar.tsx
+      const NavLink = ({ page, iconClass, currentPage, setCurrentPage, children }) => {
+        const isActive = currentPage === page;
+        return (
+          <li className={`flex items-center p-3 my-1 rounded-lg cursor-pointer transition-all duration-200 ${ isActive ? 'bg-primary text-white shadow-lg' : 'text-text-secondary hover:bg-slate-200 hover:text-primary' }`} onClick={() => setCurrentPage(page)} >
+            <i className={`${iconClass} w-6 h-6 mr-3`}></i>
+            <span className="font-medium">{children}</span>
+          </li>
+        );
+      };
+
+      const Sidebar = ({ currentPage, setCurrentPage, onLogout }) => {
+        return (
+          <aside className="w-64 bg-surface p-4 flex flex-col justify-between shadow-lg">
+            <div>
+              <div className="flex items-center justify-center mb-10 p-3 flex-col">
+                <img src="https://storage.googleapis.com/prompt-images/f5c3a4f8-4b2e-4e1c-8b8a-1e2d3f4a5b6c.png" alt="ERTVC Logo" className="h-24 w-24 object-contain mb-3"/>
+                <h1 className="text-xl font-bold text-text-primary text-center">ERTVC Inventory Pro</h1>
+                <p className="text-xs text-text-secondary text-center mt-2 uppercase tracking-wider">Technology for Sustainable Development</p>
+              </div>
+              <nav>
+                <ul>
+                  <NavLink page={Page.DASHBOARD} iconClass="fas fa-tachometer-alt" currentPage={currentPage} setCurrentPage={setCurrentPage}>Dashboard</NavLink>
+                  <NavLink page={Page.INVENTORY} iconClass="fas fa-box-open" currentPage={currentPage} setCurrentPage={setCurrentPage}>Inventory</NavLink>
+                  <NavLink page={Page.ISSUE_LOG} iconClass="fas fa-clipboard-list" currentPage={currentPage} setCurrentPage={setCurrentPage}>Issue Log</NavLink>
+                  <NavLink page={Page.RECIPIENTS} iconClass="fas fa-users" currentPage={currentPage} setCurrentPage={setCurrentPage}>Recipients</NavLink>
+                </ul>
+              </nav>
+            </div>
+             <div className="p-3 text-center">
+                <button onClick={onLogout} className="w-full flex items-center justify-center p-3 rounded-lg cursor-pointer transition-all duration-200 text-text-secondary hover:bg-red-100 hover:text-red-700" >
+                  <i className="fas fa-sign-out-alt w-6 h-6 mr-3"></i>
+                  <span className="font-medium">Logout</span>
+                </button>
+                <p className="text-text-secondary text-xs mt-4">&copy; {new Date().getFullYear()} ERTVC</p>
+             </div>
+          </aside>
+        );
+      };
+
+      // From components/LoginPage.tsx
+      const LoginPage = ({ onLogin, error }) => {
+        const [username, setUsername] = useState('');
+        const [password, setPassword] = useState('');
+
+        const handleLoginAttempt = (e) => {
+          e.preventDefault();
+          onLogin(username, password);
+        };
+
+        return (
+          <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary">
+            <div className="w-full max-w-md p-8 space-y-6 bg-surface rounded-xl shadow-2xl">
+              <div className="text-center">
+                <img src="https://storage.googleapis.com/prompt-images/f5c3a4f8-4b2e-4e1c-8b8a-1e2d3f4a5b6c.png" alt="ERTVC Logo" className="w-24 h-24 mx-auto mb-4"/>
+                <h1 className="text-2xl font-bold text-text-primary">ERTVC Inventory Pro</h1>
+                <p className="text-text-secondary">Please sign in to continue</p>
+              </div>
+              <form className="mt-8 space-y-6" onSubmit={handleLoginAttempt}>
+                {error && <p className="text-center text-sm font-medium text-red-600 bg-red-100 p-3 rounded-lg">{error}</p>}
+                <div className="relative">
+                  <label htmlFor="username" className="sr-only">Username</label>
+                  <input id="username" name="username" type="text" autoComplete="username" required className="w-full px-4 py-3 text-text-primary bg-slate-100 border-2 border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
+                </div>
+                <div className="relative">
+                  <label htmlFor="password" className="sr-only">Password</label>
+                  <input id="password" name="password" type="password" autoComplete="current-password" required className="w-full px-4 py-3 text-text-primary bg-slate-100 border-2 border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                </div>
+                <div>
+                  <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors" >
+                    Sign in
+                  </button>
+                </div>
+              </form>
+              <div className="pt-4 mt-4 border-t border-secondary text-center">
+                  <p className="text-xs text-red-700 font-semibold uppercase tracking-wider">
+                     For Authorized Use Only
+                  </p>
+                  <p className="text-xs text-text-secondary mt-1">
+                      This system is the exclusive property of ERTVC Procurement. Unauthorized access or use is strictly prohibited.
+                  </p>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // From App.tsx
+      const App = () => {
+        const [isAuthenticated, setIsAuthenticated] = useState(false);
+        const [loginError, setLoginError] = useState('');
+        const [currentPage, setCurrentPage] = useState(Page.DASHBOARD);
+        const [items, setItems] = useState([
+          { id: '1', name: 'Laptop Pro', quantity: 25, category: 'Electronics', dateAdded: '2023-10-01', unit: UnitType.PCS, isAsset: true, department: 'ICT Department' },
+          { id: '2', name: 'Wireless Mouse', quantity: 50, category: 'Accessories', dateAdded: '2023-10-05', unit: UnitType.PCS, isAsset: true, department: 'ICT Department' },
+          { id: '3', name: 'Projector', quantity: 10, category: 'Electronics', dateAdded: '2023-09-15', unit: UnitType.PCS, isAsset: true, department: 'Training Department' },
+          { id: '4', name: 'Whiteboard Markers (Pack)', quantity: 100, category: 'Stationery', dateAdded: '2023-10-10', unit: UnitType.PCS, isAsset: false, department: 'Procurement' },
+          { id: '5', name: 'Office Chair', quantity: 5, category: 'Furniture', dateAdded: '2023-08-20', unit: UnitType.PCS, isAsset: true, department: 'Administration' },
+          { id: '6', name: 'Notebooks (Pack of 10)', quantity: 200, category: 'Stationery', dateAdded: '2023-10-12', unit: UnitType.PCS, isAsset: false, department: 'Procurement' },
+          { id: '7', name: 'Cooking Oil', quantity: 30, category: 'Consumables', dateAdded: '2023-10-20', unit: UnitType.KGS, isAsset: false, department: 'Kitchen' },
+          { id: '8', name: 'Rice', quantity: 150, category: 'Consumables', dateAdded: '2023-10-20', unit: UnitType.KGS, isAsset: false, department: 'Kitchen' },
+          { id: '9', name: 'Chef Knife Set', quantity: 3, category: 'Equipment', dateAdded: '2023-09-01', unit: UnitType.PCS, isAsset: true, department: 'Kitchen' },
+        ]);
+        const [issueRecords, setIssueRecords] = useState([
+          { id: 'rec1', itemId: '1', itemName: 'Laptop Pro', quantityIssued: 1, recipientName: 'John Doe (TRN001)', recipientType: RecipientType.TRAINER, dateIssued: '2023-10-15', unit: UnitType.PCS, returnDate: '2023-11-15' },
+          { id: 'rec2', itemId: '4', itemName: 'Whiteboard Markers (Pack)', quantityIssued: 5, recipientName: 'Jane Smith (ADM015)', recipientType: RecipientType.TRAINEE, dateIssued: '2023-10-16', unit: UnitType.PCS },
+          { id: 'rec3', itemId: '2', itemName: 'Wireless Mouse', quantityIssued: 1, recipientName: 'Peter Jones (NTS005)', recipientType: RecipientType.NON_TEACHING_STAFF, dateIssued: '2023-10-17', unit: UnitType.PCS, returnDate: '2023-11-01' },
+          { id: 'rec4', itemId: '3', itemName: 'Projector', quantityIssued: 1, recipientName: 'Alice Johnson (ADM1001)', recipientType: RecipientType.TRAINEE, dateIssued: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], unit: UnitType.PCS, returnDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
+        ]);
+        const [recipients, setRecipients] = useState([
+          { id: 'trainee1', name: 'Alice Johnson', identifier: 'ADM1001', type: RecipientType.TRAINEE },
+          { id: 'trainee2', name: 'Bob Williams', identifier: 'ADM1002', type: RecipientType.TRAINEE },
+          { id: 'trainer1', name: 'Charles Brown', identifier: 'TRN2001', type: RecipientType.TRAINER },
+          { id: 'staff1', name: 'Diana Miller', identifier: 'NTS3001', type: RecipientType.NON_TEACHING_STAFF },
+        ]);
+
+        const handleAddItem = (item) => {
+          const newItem = { ...item, id: new Date().toISOString(), dateAdded: new Date().toISOString().split('T')[0] };
+          setItems(prev => [newItem, ...prev]);
+        };
+
+        const handleIssueItem = (issueDetails) => {
+          const itemToUpdate = items.find(item => item.id === issueDetails.itemId);
+          if (itemToUpdate && itemToUpdate.quantity >= issueDetails.quantityIssued) {
+            const newIssueRecord = { ...issueDetails, id: new Date().toISOString(), itemName: itemToUpdate.name, unit: itemToUpdate.unit, dateIssued: new Date().toISOString().split('T')[0] };
+            setItems(prevItems => prevItems.map(item => item.id === issueDetails.itemId ? { ...item, quantity: item.quantity - issueDetails.quantityIssued } : item));
+            setIssueRecords(prevRecords => [newIssueRecord, ...prevRecords]);
+            return true;
+          }
+          alert('Not enough stock to issue the requested quantity.');
+          return false;
+        };
+
+        const handleAddRecipient = (recipient) => {
+          const newRecipient = { ...recipient, id: new Date().toISOString() };
+          setRecipients(prev => [newRecipient, ...prev]);
+        };
+
+        const handleImportRecipients = (importedRecipients) => {
+          const existingIdentifiers = new Set(recipients.map(r => r.identifier.toLowerCase()));
+          const newUniqueRecipients = importedRecipients.filter(r => !existingIdentifiers.has(r.identifier.toLowerCase())).map(r => ({ ...r, id: `imported-${Date.now()}-${Math.random()}` }));
+          setRecipients(prev => [...newUniqueRecipients, ...prev]);
+          alert(`${newUniqueRecipients.length} new recipients imported successfully. ${importedRecipients.length - newUniqueRecipients.length} duplicates were ignored.`);
+        };
+
+        const dashboardStats = useMemo(() => {
+          const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+          const lowStockItems = items.filter(item => item.quantity <= 10).length;
+          const totalIssued = issueRecords.reduce((sum, record) => sum + record.quantityIssued, 0);
+          const categories = [...new Set(items.map(item => item.category))].length;
+          return { totalItems, lowStockItems, totalIssued, categories };
+        }, [items, issueRecords]);
+
+        const handleLogin = (user, pass) => {
+          if (user === 'admin' && pass === 'password') {
+            setIsAuthenticated(true);
+            setLoginError('');
+          } else {
+            setLoginError('Invalid username or password. Please try again.');
+          }
+        };
+
+        const handleLogout = () => { setIsAuthenticated(false); };
+
+        const renderPage = () => {
+          switch (currentPage) {
+            case Page.DASHBOARD: return <Dashboard stats={dashboardStats} items={items} />;
+            case Page.INVENTORY: return <Inventory items={items} recipients={recipients} onAddItem={handleAddItem} onIssueItem={handleIssueItem} />;
+            case Page.ISSUE_LOG: return <IssueLog records={issueRecords} />;
+            case Page.RECIPIENTS: return <RecipientsPage recipients={recipients} onAddRecipient={handleAddRecipient} onImportRecipients={handleImportRecipients} />;
+            default: return <Dashboard stats={dashboardStats} items={items} />;
+          }
+        };
+
+        if (!isAuthenticated) {
+          return <LoginPage onLogin={handleLogin} error={loginError} />;
+        }
+
+        return (
+          <div className="flex h-screen bg-gradient-to-br from-background to-secondary text-text-primary">
+            <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} onLogout={handleLogout} />
+            <main className="flex-1 p-6 lg:p-10 overflow-auto">{renderPage()}</main>
+          </div>
+        );
+      };
+
+      // From index.tsx
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        <React.StrictMode>
+          <App />
+        </React.StrictMode>
+      );
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js').then(registration => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          }, err => {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+        });
+      }
+    </script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
